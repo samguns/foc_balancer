@@ -77,7 +77,7 @@ float getYawIMU() {
 
 // initialise and configure the IMU with DMP
 int initIMU() {
-  Wire.begin(23, 5);
+  Wire.begin(22, 15);
   Wire.setClock(400000); // 400kHz I2C clock. Comment this line if having compilation difficulties
   // initialize device
   Serial.println(F("Initializing I2C devices..."));
