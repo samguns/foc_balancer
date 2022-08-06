@@ -17,10 +17,10 @@ MagneticSensorSPI sensor0 = MagneticSensorSPI(AS5147_SPI, 5);
 MagneticSensorSPI sensor1 = MagneticSensorSPI(AS5147_SPI, 21);
 
 // Motor instance
-BLDCMotor motor1 = BLDCMotor(11);
+BLDCMotor motor1 = BLDCMotor(7);
 BLDCDriver3PWM driver1 = BLDCDriver3PWM(32, 25, 26, 33);
 
-BLDCMotor motor2 = BLDCMotor(11);
+BLDCMotor motor2 = BLDCMotor(7);
 BLDCDriver3PWM driver2 = BLDCDriver3PWM(27, 14, 13, 12);
 
 InlineCurrentSense current_sense1 = InlineCurrentSense(0.01, 50.0, 35, 34);
@@ -28,7 +28,7 @@ InlineCurrentSense current_sense2 = InlineCurrentSense(0.01, 50.0, 37, 36);
 
 // control algorithm parameters
 // stabilisation pid
-PIDController pid_stb = PIDController(30, 100, 1, 100, 3);
+PIDController pid_stb = PIDController(30, 100, 1, 100, 2);
 // velocity pid
 PIDController pid_vel = PIDController(0.01, 0.03, 0, 100000, _PI / 10);
 // velocity control filtering
@@ -51,6 +51,7 @@ void cntMove(char* cmd) {  commander.pid(&pid_vel, cmd);}
 void lpfPitch(char* cmd) {  commander.lpf(&lpf_pitch_cmd, cmd);}
 void lpfSteering(char* cmd) {  commander.lpf(&lpf_steering, cmd);}
 void lpfThrottle(char* cmd) {  commander.lpf(&lpf_throttle, cmd);}
+void resetCmd(char *cmd) { ESP.restart(); }
 
 void setup() {
   Serial.begin(115200);
@@ -93,10 +94,10 @@ void setup() {
   motor2.foc_modulation = FOCModulationType::SpaceVectorPWM;
 
   // enable monitoring
-  motor1.useMonitoring(Serial);
-//  motor1.useMonitoring(bluetooth);
-  motor2.useMonitoring(Serial);
-//  motor2.useMonitoring(bluetooth);
+  // motor1.useMonitoring(Serial);
+ motor1.useMonitoring(bluetooth);
+  // motor2.useMonitoring(Serial);
+ motor2.useMonitoring(bluetooth);
 
   current_sense1.linkDriver(&driver1);
   current_sense1.init();
@@ -125,6 +126,7 @@ void setup() {
   commander.add('C', lpfThrottle, "lpf vel command");
   commander.add('D', lpfPitch, "lpf throttle");
   commander.add('E', lpfSteering, "lpf steering");
+  commander.add('R', resetCmd, "restart");
 
   Serial.println(F("Balancing robot ready!"));
   bluetooth.println(F("Balancing robot ready!"));
@@ -146,7 +148,7 @@ void loop() {
     motor1.target = 0;
     motor2.target = 0;
   } else if ( hasDataIMU() ) {
-    float pitch = getPitchIMU();
+    float pitch = getRollIMU();
 //    Serial.printf("pitch: %f\n", pitch * 180 / M_PI);
     float target_pitch = lpf_pitch_cmd(pid_vel((motor1.shaft_velocity + motor2.shaft_velocity) / 2 - lpf_throttle(throttle)));
     // calculate the target voltage
@@ -156,17 +158,17 @@ void loop() {
     float steering_adj = lpf_steering(steering);
     // set the tergat voltage value
     motor1.target = voltage_control + steering_adj;
-    motor2.target = -voltage_control + steering_adj;
+    motor2.target = voltage_control - steering_adj;
 
-    analogVolts = analogReadMilliVolts(38);
-    dc_bus = analogVolts * _VOLTAGE_DIVIDER_RATIO;
-    memcpy(&i, &voltage_control, sizeof(i));
-    CAN.beginPacket(0x1);
-    CAN.write((i & 0xff000000) >> 24);
-    CAN.write((i & 0x00ff0000) >> 16);
-    CAN.write((i & 0x0000ff00) >> 8);
-    CAN.write(i & 0xff);
-    CAN.endPacket();
+    // analogVolts = analogReadMilliVolts(38);
+    // dc_bus = analogVolts * _VOLTAGE_DIVIDER_RATIO;
+    // memcpy(&i, &voltage_control, sizeof(i));
+    // CAN.beginPacket(0x1);
+    // CAN.write((i & 0xff000000) >> 24);
+    // CAN.write((i & 0x00ff0000) >> 16);
+    // CAN.write((i & 0x0000ff00) >> 8);
+    // CAN.write(i & 0xff);
+    // CAN.endPacket();
   }
 
   commander.run();
